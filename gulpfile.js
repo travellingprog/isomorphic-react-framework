@@ -1,44 +1,51 @@
 'use strict';
 
-var gulp = require('gulp');
+var gulp = require('gulp'),
+	del = require('del');
 
-gulp.task('default', ['clean', 'html']);
+var distFolder = 'dist'
+var tempFolder = '.tmp'
+
+
+gulp.task('default', ['watch']);
 
 gulp.task('clean', function () {
-	var del = require('del');
-	return del.sync(['dist/**/*']);
+	var distTarget = distFolder + '/**/*';
+	return del.sync([distTarget, tempFolder]);
 });
 
-gulp.task('html', function () {
-	var babel = require('gulp-babel');
+// HTML-rendering tasks
+gulp.task('html', ['html:react'], function () {
+	// Delete temporary folder created by html:react
+	return del.sync([tempFolder]);
+});
+
+gulp.task('html:react', ['clean'], function (cb) {
+	var babel = require('gulp-babel'),
+		data = require('gulp-data'),
+		reactToHTML = require('./gulp-react-to-html.js'),
+		requireGlob = require('require-glob');
+
+	var dataObj = requireGlob.sync('./src/data/**/*.{js,json}');
 	
 	return gulp
 		.src('src/components/**/*.jsx')
 		.pipe(babel({
 			presets: ['react', 'es2015']
+
 		}))
-		.pipe(gulp.dest('dist'));
-	// var data = require('gulp-data'),
-	// 	fm = require('gulp-front-matter'),
-	// 	nunjucksRender = require('gulp-nunjucks-render'),
-	// 	rename = require('gulp-rename'),
-	// 	requireGlob = require('require-glob');
+		.pipe(data(function() {
+			return dataObj;
+		}))
+		.pipe(gulp.dest(tempFolder)) // needed for reactToHTML()
+		.pipe(reactToHTML())
+		.pipe(gulp.dest(distFolder))
+});
 
-	// nunjucksRender.nunjucks.configure(['src/markup/partials/'], {watch: false});
-	// var dataObj = requireGlob.sync('./src/data/**/*.{js,json}');
-
-	// return gulp
-	// 	.src('src/markup/pages/**/*.nunjucks')
-	// 	.pipe(data(function() {
-	// 		return dataObj;
-	// 	}))
-	// 	.pipe(fm({property: 'data.frontMatter'}))
-	// 	.pipe(nunjucksRender())
-	// 	.pipe(rename(function (path) {
-	// 		var dirNameArray = path.dirname.split('/');
-	// 		path.dirname = dirNameArray.slice(1).join('/');
-	// 		path.extname = '.html';
-	// 		return path;
-	// 	}))
-	// 	.pipe(gulp.dest('./dist/'));
+// Watch task
+gulp.task('watch', ['html'], function () {
+	var watcher = gulp.watch('src/components/**/*.jsx', ['html']);
+	watcher.on('change', function(event) {
+	  console.log('File ' + event.path + ' was ' + event.type + '...');
+	});
 });
